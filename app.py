@@ -142,20 +142,28 @@ with col3:
     total_transit = in_transit['брутто'].sum()
     st.metric("В транзите", f"{total_transit:,.0f} т")
 
-# === 1. Объёмы по клиентам ===
-st.header("👥 Объёмы по клиентам")
+# === 1. Объёмы по клиентам (ВСЕ клиенты) ===
+st.header("👥 Объёмы по клиентам (все клиенты)")
 
+# Собираем данные по ВСЕМ клиентам
 shipped_agg = shipped.groupby('клиент')['брутто'].sum().rename('отгружено').reset_index()
 on_pier_agg = on_pier.groupby('клиент')['брутто'].sum().rename('на_причале').reset_index()
 in_transit_agg = in_transit.groupby('клиент')['брутто'].sum().rename('в_транзите').reset_index()
 
-client_status = shipped_agg.merge(on_pier_agg, on='клиент', how='outer') \
-    .merge(in_transit_agg, on='клиент', how='outer') \
-    .fillna(0)
-client_status['всего'] = client_status['отгружено'] + client_status['на_причале'] + client_status['в_транзите']
-client_status = client_status.sort_values('всего', ascending=False).head(10)
+# Объединяем все данные, включая клиентов с нулевыми значениями
+all_clients = df['клиент'].unique()
+client_status = pd.DataFrame({'клиент': all_clients})
 
-# Создаем компактный график
+# Мерджим с агрегированными данными
+client_status = client_status.merge(shipped_agg, on='клиент', how='left') \
+    .merge(on_pier_agg, on='клиент', how='left') \
+    .merge(in_transit_agg, on='клиент', how='left') \
+    .fillna(0)
+
+client_status['всего'] = client_status['отгружено'] + client_status['на_причале'] + client_status['в_транзите']
+client_status = client_status.sort_values('всего', ascending=False)
+
+# Создаем компактный график для всех клиентов
 fig_clients = go.Figure()
 fig_clients.add_trace(go.Bar(name='Отгружено', x=client_status['клиент'], y=client_status['отгружено'], 
                             marker_color='#FF6B6B'))
@@ -165,28 +173,52 @@ fig_clients.add_trace(go.Bar(name='В транзите', x=client_status['кли
                             marker_color='#45B7D1'))
 
 fig_clients.update_layout(
-    height=400,
+    height=500,
     showlegend=True,
     barmode='stack',
-    margin=dict(t=30, b=80, l=50, r=30),
+    margin=dict(t=30, b=150, l=50, r=30),  # Увеличил нижний отступ для подписей
     xaxis_tickangle=-45
 )
 st.plotly_chart(fig_clients, use_container_width=True)
+
+# Таблица с детальными данными по всем клиентам
+with st.expander("📋 Детальная таблица по всем клиентам"):
+    display_table = client_status.copy()
+    display_table['отгружено'] = display_table['отгружено'].round(1)
+    display_table['на_причале'] = display_table['на_причале'].round(1)
+    display_table['в_транзите'] = display_table['в_транзите'].round(1)
+    display_table['всего'] = display_table['всего'].round(1)
+    
+    st.dataframe(
+        display_table,
+        column_config={
+            "клиент": "Клиент",
+            "отгружено": st.column_config.NumberColumn("Отгружено (т)", format="%.1f т"),
+            "на_причале": st.column_config.NumberColumn("На причале (т)", format="%.1f т"),
+            "в_транзите": st.column_config.NumberColumn("В транзите (т)", format="%.1f т"),
+            "всего": st.column_config.NumberColumn("Всего (т)", format="%.1f т"),
+        },
+        use_container_width=True
+    )
 
 # === 2. Отгрузка за сегодня ===
 st.header("📅 Сегодняшние отгрузки")
 
 shipped_today = shipped[shipped['дата_отгрузки_авто'].dt.date == today.date()]
 shipped_today_by_client = shipped_today.groupby('клиент')['брутто'].sum().reset_index()
-shipped_today_by_client = shipped_today_by_client.sort_values('брутто', ascending=False).head(10)
+shipped_today_by_client = shipped_today_by_client.sort_values('брутто', ascending=False)
 
 if len(shipped_today_by_client) > 0:
     fig_today = px.bar(shipped_today_by_client, x='клиент', y='брутто', 
                       title=f"Отгрузки за {today.strftime('%d.%m.%Y')}",
                       color='брутто', color_continuous_scale='Viridis')
-    fig_today.update_layout(height=300, margin=dict(t=40, b=80, l=50, r=30),
+    fig_today.update_layout(height=400, margin=dict(t=40, b=100, l=50, r=30),
                            xaxis_tickangle=-45)
     st.plotly_chart(fig_today, use_container_width=True)
+    
+    # Показать общую сумму отгрузок за сегодня
+    total_today = shipped_today_by_client['брутто'].sum()
+    st.info(f"Всего отгружено сегодня: **{total_today:,.1f} т**")
 else:
     st.info("Сегодня отгрузок не было")
 
@@ -214,107 +246,99 @@ monthly_shipments['месяц'] = monthly_shipments['месяц'].astype(str)
 monthly_stats = pd.merge(monthly_arrivals, monthly_shipments, on='месяц', how='outer').fillna(0)
 
 if len(monthly_stats) > 0:
+    # График принято vs отгружено
     fig_monthly = go.Figure()
-    fig_monthly.add_trace(go.Scatter(x=monthly_stats['месяц'], y=monthly_stats['принято_тонн'], 
-                                    name='Принято', line=dict(color='#4ECDC4', width=3)))
-    fig_monthly.add_trace(go.Scatter(x=monthly_stats['месяц'], y=monthly_stats['отгружено_тонн'], 
-                                    name='Отгружено', line=dict(color='#FF6B6B', width=3)))
+    fig_monthly.add_trace(go.Bar(name='Принято', x=monthly_stats['месяц'], y=monthly_stats['принято_тонн'],
+                                marker_color='#4ECDC4'))
+    fig_monthly.add_trace(go.Bar(name='Отгружено', x=monthly_stats['месяц'], y=monthly_stats['отгружено_тонн'],
+                                marker_color='#FF6B6B'))
     
-    fig_monthly.update_layout(height=350, margin=dict(t=40, b=50, l=50, r=30),
-                             xaxis_tickangle=-45)
+    fig_monthly.update_layout(
+        height=400, 
+        margin=dict(t=40, b=80, l=50, r=30),
+        xaxis_tickangle=-45,
+        barmode='group'
+    )
     st.plotly_chart(fig_monthly, use_container_width=True)
-
-# === 4. Анализ FIFO ===
-st.header("⚡ Анализ FIFO")
-
-def analyze_fifo_violations(df):
-    shipped_items = df[df['дата_отгрузки_авто'].notna()].copy()
     
-    if len(shipped_items) == 0:
-        return pd.DataFrame()
-    
-    fifo_violations = []
-    
-    for client in shipped_items['клиент'].unique():
-        if client == '':
-            continue
-            
-        client_data = shipped_items[shipped_items['клиент'] == client].copy()
-        client_data = client_data.sort_values(['дата_принятия_на_пирс', 'дата_отгрузки_авто'])
-        
-        for i in range(len(client_data)):
-            current_item = client_data.iloc[i]
-            arrival_date = current_item['дата_принятия_на_пирс']
-            shipment_date = current_item['дата_отгрузки_авто']
-            
-            later_arrivals = client_data[
-                (client_data['дата_принятия_на_пирс'] > arrival_date) & 
-                (client_data['дата_отгрузки_авто'] < shipment_date)
-            ]
-            
-            for j, violation_item in later_arrivals.iterrows():
-                fifo_violations.append({
-                    'клиент': client,
-                    'ранее_прибывшая_позиция_сертификат': current_item['№ сертиф.'],
-                    'ранее_прибывшая_позиция_дата_прибытия': arrival_date,
-                    'ранее_прибывшая_позиция_дата_отгрузки': shipment_date,
-                    'позже_прибывшая_позиция_сертификат': violation_item['№ сертиф.'],
-                    'позже_прибывшая_позиция_дата_отгрузки': violation_item['дата_отгрузки_авто'],
-                    'разница_в_днях_отгрузки': (shipment_date - violation_item['дата_отгрузки_авто']).days
-                })
-    
-    return pd.DataFrame(fifo_violations)
+    # График уникальных клиентов по месяцам
+    fig_clients_monthly = px.line(monthly_stats, x='месяц', y='уникальных_клиентов',
+                                 title='Количество уникальных клиентов по месяцам',
+                                 markers=True)
+    fig_clients_monthly.update_layout(height=300, margin=dict(t=40, b=50, l=50, r=30))
+    st.plotly_chart(fig_clients_monthly, use_container_width=True)
 
-fifo_violations_df = analyze_fifo_violations(df)
+# === 4. Топ клиентов по общему тоннажу ===
+st.header("🏆 Топ клиентов по общему тоннажу")
 
-col1, col2 = st.columns(2)
-with col1:
-    fifo_count = len(fifo_violations_df)
-    st.metric("Нарушений FIFO", fifo_count)
-with col2:
-    if fifo_count > 0:
-        avg_delay = fifo_violations_df['разница_в_днях_отгрузки'].mean()
-        st.metric("Средняя задержка", f"{avg_delay:.1f} дн.")
-
-if len(fifo_violations_df) > 0:
-    fifo_by_client = fifo_violations_df.groupby('клиент').size().reset_index(name='нарушений')
-    fifo_by_client = fifo_by_client.sort_values('нарушений', ascending=False).head(8)
-    
-    fig_fifo = px.bar(fifo_by_client, x='клиент', y='нарушений', 
-                     color='нарушений', color_continuous_scale='Reds')
-    fig_fifo.update_layout(height=300, margin=dict(t=40, b=80, l=50, r=30),
-                          xaxis_tickangle=-45, showlegend=False)
-    st.plotly_chart(fig_fifo, use_container_width=True)
-    
-    with st.expander("Детали нарушений"):
-        st.dataframe(fifo_violations_df.head(10), use_container_width=True)
-else:
-    st.success("✅ Нарушений FIFO не обнаружено")
-
-# === 5. Топ клиентов по эффективности ===
-st.header("🏆 Топ клиентов")
-
-shipment_data = df[df['дата_отгрузки_авто'].notna()].copy()
 client_analysis = shipment_data.groupby('клиент').agg({
     'брутто': 'sum',
     '№ сертиф.': 'count'
 }).reset_index()
 client_analysis.columns = ['клиент', 'общий_вес', 'количество_мест']
-client_analysis = client_analysis.nlargest(8, 'общий_вес')
+client_analysis = client_analysis.sort_values('общий_вес', ascending=False)
 
-fig_top = px.pie(client_analysis, values='общий_вес', names='клиент', 
-                title="Распределение по клиентам")
-fig_top.update_layout(height=400, margin=dict(t=40, b=20, l=20, r=20))
+# Показываем топ-15 клиентов
+top_clients = client_analysis.head(15)
+
+fig_top = px.bar(top_clients, x='общий_вес', y='клиент', orientation='h',
+                title="Топ-15 клиентов по общему тоннажу",
+                color='общий_вес', color_continuous_scale='Blues')
+fig_top.update_layout(height=500, margin=dict(t=40, b=20, l=150, r=20))
 st.plotly_chart(fig_top, use_container_width=True)
+
+# === 5. Анализ судов ===
+st.header("🚢 Анализ судов")
+
+def analyze_circular_voyages(vessel_name):
+    if pd.isna(vessel_name) or vessel_name == '':
+        return vessel_name, 0
+    vessel_str = str(vessel_name).strip()
+    pattern = r'^(.*?)\s*\((\d+)\)\s*$'
+    match = re.search(pattern, vessel_str)
+    if match:
+        base_name = match.group(1).strip()
+        voyage_number = int(match.group(2))
+        return base_name, voyage_number
+    else:
+        return vessel_str, 0
+
+arrival_data = df[df['дата_принятия_на_пирс'].notna()].copy()
+arrival_data[['базовое_название', 'номер_кругорейса']] = arrival_data['судно'].apply(
+    lambda x: pd.Series(analyze_circular_voyages(x))
+)
+
+vessel_stats = arrival_data.groupby('базовое_название').agg({
+    'дата_принятия_на_пирс': 'nunique',
+    'номер_кругорейса': 'max',
+    'брутто': 'sum'
+}).reset_index()
+vessel_stats.columns = ['судно', 'количество_заходов', 'максимальный_кругорейс', 'общий_тоннаж']
+vessel_stats = vessel_stats.sort_values('общий_тоннаж', ascending=False).head(10)
+
+if len(vessel_stats) > 0:
+    fig_vessels = px.bar(vessel_stats, x='общий_тоннаж', y='судно', orientation='h',
+                        title="Топ-10 судов по тоннажу",
+                        color='количество_заходов', color_continuous_scale='Greens')
+    fig_vessels.update_layout(height=400, margin=dict(t=40, b=20, l=150, r=20))
+    st.plotly_chart(fig_vessels, use_container_width=True)
 
 # === Информация ===
 with st.expander("📖 Пояснение показателей"):
     st.markdown("""
-    - **На причале** — принято, но не отгружено  
-    - **В транзите** — груз в пути к причалу  
-    - **Нарушение FIFO** — поздняя позиция отгружена раньше ранней
-    - **Эффективность** — отношение отгруженного к принятому
+    ### 📌 Пояснение показателей:
+    
+    - **Отгружено** — груз, который уже был отгружен с причала
+    - **На причале** — принятый груз, который еще не отгружен  
+    - **В транзите** — груз в пути к причалу
+    - **Все клиенты** — включая тех, у кого малый тоннаж или нулевые показатели
+    
+    ### 📊 Метрики:
+    - **Тоннаж** измеряется в тоннах (т)
+    - **Динамика** показывает изменения по месяцам
+    - **Уникальные клиенты** — количество разных клиентов в месяце
     """)
 
 # Статус загрузки
 st.success(f"✅ Данные актуальны на {datetime.now().strftime('%H:%M %d.%m.%Y')}")
+st.info(f"📊 Всего клиентов в системе: **{len(client_status)}**")
