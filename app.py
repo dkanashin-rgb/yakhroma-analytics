@@ -139,11 +139,11 @@ with col2:
     total_on_pier = on_pier['брутто'].sum()
     st.metric("На причале", f"{total_on_pier:,.0f} т")
 with col3:
-    total_transit = in_transit['брутто'].sum()
+    total_transit = in_transit['брутto'].sum()
     st.metric("В транзите", f"{total_transit:,.0f} т")
 
 # === 1. Объёмы по клиентам (ВСЕ клиенты) ===
-st.header("👥 Объёмы по клиентам (все клиенты)")
+st.header("👥 Объёмы по клиентам")
 
 # Собираем данные по ВСЕМ клиентам
 shipped_agg = shipped.groupby('клиент')['брутто'].sum().rename('отгружено').reset_index()
@@ -163,23 +163,58 @@ client_status = client_status.merge(shipped_agg, on='клиент', how='left') 
 client_status['всего'] = client_status['отгружено'] + client_status['на_причале'] + client_status['в_транзите']
 client_status = client_status.sort_values('всего', ascending=False)
 
-# Создаем компактный график для всех клиентов
+# Создаем отдельные наборы данных для каждого типа статуса (исключая нулевые значения)
+clients_with_shipped = client_status[client_status['отгружено'] > 0]
+clients_with_on_pier = client_status[client_status['на_причале'] > 0]
+clients_with_in_transit = client_status[client_status['в_транзите'] > 0]
+
+# Создаем интерактивный график с отдельными трейсами
 fig_clients = go.Figure()
-fig_clients.add_trace(go.Bar(name='Отгружено', x=client_status['клиент'], y=client_status['отгружено'], 
-                            marker_color='#FF6B6B'))
-fig_clients.add_trace(go.Bar(name='На причале', x=client_status['клиент'], y=client_status['на_причале'], 
-                            marker_color='#4ECDC4'))
-fig_clients.add_trace(go.Bar(name='В транзите', x=client_status['клиент'], y=client_status['в_транзите'], 
-                            marker_color='#45B7D1'))
+
+# Добавляем только клиентов с ненулевыми значениями для каждого статуса
+fig_clients.add_trace(go.Bar(
+    name='Отгружено', 
+    x=clients_with_shipped['клиент'], 
+    y=clients_with_shipped['отгружено'], 
+    marker_color='#FF6B6B',
+    hovertemplate='<b>%{x}</b><br>Отгружено: %{y:,.1f} т<extra></extra>'
+))
+
+fig_clients.add_trace(go.Bar(
+    name='На причале', 
+    x=clients_with_on_pier['клиент'], 
+    y=clients_with_on_pier['на_причале'], 
+    marker_color='#4ECDC4',
+    hovertemplate='<b>%{x}</b><br>На причале: %{y:,.1f} т<extra></extra>'
+))
+
+fig_clients.add_trace(go.Bar(
+    name='В транзите', 
+    x=clients_with_in_transit['клиент'], 
+    y=clients_with_in_transit['в_транзите'], 
+    marker_color='#45B7D1',
+    hovertemplate='<b>%{x}</b><br>В транзите: %{y:,.1f} т<extra></extra>'
+))
 
 fig_clients.update_layout(
     height=500,
     showlegend=True,
     barmode='stack',
-    margin=dict(t=30, b=150, l=50, r=30),  # Увеличил нижний отступ для подписей
-    xaxis_tickangle=-45
+    margin=dict(t=30, b=150, l=50, r=30),
+    xaxis_tickangle=-45,
+    legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="right",
+        x=1
+    )
 )
+
 st.plotly_chart(fig_clients, use_container_width=True)
+
+# Информация о фильтрации
+st.info("💡 **Подсказка:** Используйте легенду выше для фильтрации данных. Клиенты с нулевыми значениями автоматически скрываются при переключении категорий.")
 
 # Таблица с детальными данными по всем клиентам
 with st.expander("📋 Детальная таблица по всем клиентам"):
@@ -209,16 +244,22 @@ shipped_today_by_client = shipped_today.groupby('клиент')['брутто'].
 shipped_today_by_client = shipped_today_by_client.sort_values('брутто', ascending=False)
 
 if len(shipped_today_by_client) > 0:
-    fig_today = px.bar(shipped_today_by_client, x='клиент', y='брутто', 
-                      title=f"Отгрузки за {today.strftime('%d.%m.%Y')}",
-                      color='брутто', color_continuous_scale='Viridis')
-    fig_today.update_layout(height=400, margin=dict(t=40, b=100, l=50, r=30),
-                           xaxis_tickangle=-45)
-    st.plotly_chart(fig_today, use_container_width=True)
+    # Показываем только клиентов с ненулевыми отгрузками сегодня
+    active_today_clients = shipped_today_by_client[shipped_today_by_client['брутто'] > 0]
     
-    # Показать общую сумму отгрузок за сегодня
-    total_today = shipped_today_by_client['брутто'].sum()
-    st.info(f"Всего отгружено сегодня: **{total_today:,.1f} т**")
+    if len(active_today_clients) > 0:
+        fig_today = px.bar(active_today_clients, x='клиент', y='брутто', 
+                          title=f"Отгрузки за {today.strftime('%d.%m.%Y')}",
+                          color='брутто', color_continuous_scale='Viridis')
+        fig_today.update_layout(height=400, margin=dict(t=40, b=100, l=50, r=30),
+                               xaxis_tickangle=-45)
+        st.plotly_chart(fig_today, use_container_width=True)
+        
+        # Показать общую сумму отгрузок за сегодня
+        total_today = active_today_clients['брутто'].sum()
+        st.info(f"Всего отгружено сегодня: **{total_today:,.1f} т**")
+    else:
+        st.info("Сегодня активных отгрузок не было")
 else:
     st.info("Сегодня отгрузок не было")
 
@@ -278,14 +319,17 @@ client_analysis = shipment_data.groupby('клиент').agg({
 client_analysis.columns = ['клиент', 'общий_вес', 'количество_мест']
 client_analysis = client_analysis.sort_values('общий_вес', ascending=False)
 
-# Показываем топ-15 клиентов
-top_clients = client_analysis.head(15)
+# Показываем топ-15 клиентов (только с ненулевыми значениями)
+top_clients = client_analysis[client_analysis['общий_вес'] > 0].head(15)
 
-fig_top = px.bar(top_clients, x='общий_вес', y='клиент', orientation='h',
-                title="Топ-15 клиентов по общему тоннажу",
-                color='общий_вес', color_continuous_scale='Blues')
-fig_top.update_layout(height=500, margin=dict(t=40, b=20, l=150, r=20))
-st.plotly_chart(fig_top, use_container_width=True)
+if len(top_clients) > 0:
+    fig_top = px.bar(top_clients, x='общий_вес', y='клиент', orientation='h',
+                    title="Топ-15 клиентов по общему тоннажу",
+                    color='общий_вес', color_continuous_scale='Blues')
+    fig_top.update_layout(height=500, margin=dict(t=40, b=20, l=150, r=20))
+    st.plotly_chart(fig_top, use_container_width=True)
+else:
+    st.info("Нет данных о клиентах с отгрузками")
 
 # === 5. Анализ судов ===
 st.header("🚢 Анализ судов")
@@ -314,7 +358,7 @@ vessel_stats = arrival_data.groupby('базовое_название').agg({
     'брутто': 'sum'
 }).reset_index()
 vessel_stats.columns = ['судно', 'количество_заходов', 'максимальный_кругорейс', 'общий_тоннаж']
-vessel_stats = vessel_stats.sort_values('общий_тоннаж', ascending=False).head(10)
+vessel_stats = vessel_stats[vessel_stats['общий_тоннаж'] > 0].sort_values('общий_тоннаж', ascending=False).head(10)
 
 if len(vessel_stats) > 0:
     fig_vessels = px.bar(vessel_stats, x='общий_тоннаж', y='судно', orientation='h',
@@ -322,6 +366,8 @@ if len(vessel_stats) > 0:
                         color='количество_заходов', color_continuous_scale='Greens')
     fig_vessels.update_layout(height=400, margin=dict(t=40, b=20, l=150, r=20))
     st.plotly_chart(fig_vessels, use_container_width=True)
+else:
+    st.info("Нет данных о судах")
 
 # === Информация ===
 with st.expander("📖 Пояснение показателей"):
@@ -331,7 +377,11 @@ with st.expander("📖 Пояснение показателей"):
     - **Отгружено** — груз, который уже был отгружен с причала
     - **На причале** — принятый груз, который еще не отгружен  
     - **В транзите** — груз в пути к причалу
-    - **Все клиенты** — включая тех, у кого малый тоннаж или нулевые показатели
+    
+    ### 💡 Особенности отображения:
+    - Клиенты с нулевыми значениями автоматически скрываются при переключении легенды
+    - Это помогает сосредоточиться на активных данных
+    - Все клиенты сохраняются в детальной таблице
     
     ### 📊 Метрики:
     - **Тоннаж** измеряется в тоннах (т)
