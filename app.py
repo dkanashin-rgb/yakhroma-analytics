@@ -139,7 +139,7 @@ with col2:
     total_on_pier = on_pier['брутто'].sum()
     st.metric("На причале", f"{total_on_pier:,.0f} т")
 with col3:
-    total_transit = in_transit['брутто'].sum()  # Исправлена опечатка: было 'брутto'
+    total_transit = in_transit['брутто'].sum()
     st.metric("В транзите", f"{total_transit:,.0f} т")
 
 # === 1. Объёмы по клиентам (ВСЕ клиенты) ===
@@ -200,17 +200,26 @@ fig_clients.update_layout(
     height=500,
     showlegend=True,
     barmode='stack',
-    margin=dict(t=30, b=150, l=50, r=100),  # Увеличено правое поле для легенды
+    margin=dict(t=30, b=150, l=50, r=150),  # Увеличено правое поле для большой легенды
     xaxis_tickangle=-45,
     legend=dict(
-        orientation="v",  # Вертикальная ориентация
+        orientation="v",
         yanchor="top",
         y=1,
         xanchor="left",
-        x=1.05,  # Справа от графика
-        bgcolor='rgba(255,255,255,0.8)',
-        bordercolor='rgba(0,0,0,0.2)',
-        borderwidth=1
+        x=1.05,
+        bgcolor='rgba(255,255,255,0.9)',
+        bordercolor='rgba(0,0,0,0.3)',
+        borderwidth=2,
+        font=dict(
+            size=16,  # Увеличен размер шрифта в 2 раза
+            family="Arial, sans-serif",
+            color='#2c3e50'
+        ),
+        itemwidth=40,  # Увеличена ширина элементов
+        itemdoubleclick=False,
+        groupclick="toggleitem",
+        itemsizing="constant"
     )
 )
 
@@ -258,7 +267,7 @@ if len(shipped_today_by_client) > 0:
             height=400, 
             margin=dict(t=40, b=100, l=50, r=30),
             xaxis_tickangle=-45,
-            showlegend=False  # Для этого графика легенда не нужна
+            showlegend=False
         )
         st.plotly_chart(fig_today, use_container_width=True)
         
@@ -303,7 +312,7 @@ if len(monthly_stats) > 0:
     
     fig_monthly.update_layout(
         height=400, 
-        margin=dict(t=40, b=80, l=50, r=100),  # Увеличено правое поле для легенды
+        margin=dict(t=40, b=80, l=50, r=150),  # Увеличено правое поле для большой легенды
         xaxis_tickangle=-45,
         barmode='group',
         legend=dict(
@@ -312,9 +321,18 @@ if len(monthly_stats) > 0:
             y=1,
             xanchor="left",
             x=1.05,
-            bgcolor='rgba(255,255,255,0.8)',
-            bordercolor='rgba(0,0,0,0.2)',
-            borderwidth=1
+            bgcolor='rgba(255,255,255,0.9)',
+            bordercolor='rgba(0,0,0,0.3)',
+            borderwidth=2,
+            font=dict(
+                size=16,  # Увеличен размер шрифта в 2 раза
+                family="Arial, sans-serif",
+                color='#2c3e50'
+            ),
+            itemwidth=40,
+            itemdoubleclick=False,
+            groupclick="toggleitem",
+            itemsizing="constant"
         )
     )
     st.plotly_chart(fig_monthly, use_container_width=True)
@@ -326,7 +344,7 @@ if len(monthly_stats) > 0:
     fig_clients_monthly.update_layout(
         height=300, 
         margin=dict(t=40, b=50, l=50, r=30),
-        showlegend=False  # Для линейного графика легенда не нужна
+        showlegend=False
     )
     st.plotly_chart(fig_clients_monthly, use_container_width=True)
 
@@ -350,7 +368,7 @@ if len(top_clients) > 0:
     fig_top.update_layout(
         height=500, 
         margin=dict(t=40, b=20, l=150, r=30),
-        showlegend=False  # Для этого графика легенда не нужна
+        showlegend=False
     )
     st.plotly_chart(fig_top, use_container_width=True)
 else:
@@ -391,7 +409,7 @@ if len(vessel_stats) > 0:
                         color='количество_заходов', color_continuous_scale='Greens')
     fig_vessels.update_layout(
         height=400, 
-        margin=dict(t=40, b=20, l=150, r=30),
+        margin=dict(t=40, b=20, l=150, r=150),  # Увеличено правое поле для большой легенды
         showlegend=True,
         legend=dict(
             orientation="v",
@@ -399,10 +417,26 @@ if len(vessel_stats) > 0:
             y=1,
             xanchor="left",
             x=1.05,
-            bgcolor='rgba(255,255,255,0.8)',
-            bordercolor='rgba(0,0,0,0.2)',
-            borderwidth=1,
-            title="Кол-во заходов"
+            bgcolor='rgba(255,255,255,0.9)',
+            bordercolor='rgba(0,0,0,0.3)',
+            borderwidth=2,
+            font=dict(
+                size=16,  # Увеличен размер шрифта в 2 раза
+                family="Arial, sans-serif",
+                color='#2c3e50'
+            ),
+            itemwidth=40,
+            itemdoubleclick=False,
+            groupclick="toggleitem",
+            itemsizing="constant",
+            title=dict(
+                text="Кол-во заходов",
+                font=dict(
+                    size=14,
+                    family="Arial, sans-serif",
+                    color='#2c3e50'
+                )
+            )
         )
     )
     st.plotly_chart(fig_vessels, use_container_width=True)
