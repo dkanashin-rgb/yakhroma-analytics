@@ -139,7 +139,7 @@ with col2:
     total_on_pier = on_pier['брутто'].sum()
     st.metric("На причале", f"{total_on_pier:,.0f} т")
 with col3:
-    total_transit = in_transit['брутto'].sum()
+    total_transit = in_transit['брутто'].sum()
     st.metric("В транзите", f"{total_transit:,.0f} т")
 
 # === 1. Объёмы по клиентам (ВСЕ клиенты) ===
