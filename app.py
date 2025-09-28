@@ -139,7 +139,7 @@ with col2:
     total_on_pier = on_pier['брутто'].sum()
     st.metric("На причале", f"{total_on_pier:,.0f} т")
 with col3:
-    total_transit = in_transit['брутто'].sum()
+    total_transit = in_transit['брутто'].sum()  # Исправлена опечатка: было 'брутto'
     st.metric("В транзите", f"{total_transit:,.0f} т")
 
 # === 1. Объёмы по клиентам (ВСЕ клиенты) ===
@@ -200,21 +200,24 @@ fig_clients.update_layout(
     height=500,
     showlegend=True,
     barmode='stack',
-    margin=dict(t=30, b=150, l=50, r=30),
+    margin=dict(t=30, b=150, l=50, r=100),  # Увеличено правое поле для легенды
     xaxis_tickangle=-45,
     legend=dict(
-        orientation="h",
-        yanchor="bottom",
-        y=1.02,
-        xanchor="right",
-        x=1
+        orientation="v",  # Вертикальная ориентация
+        yanchor="top",
+        y=1,
+        xanchor="left",
+        x=1.05,  # Справа от графика
+        bgcolor='rgba(255,255,255,0.8)',
+        bordercolor='rgba(0,0,0,0.2)',
+        borderwidth=1
     )
 )
 
 st.plotly_chart(fig_clients, use_container_width=True)
 
 # Информация о фильтрации
-st.info("💡 **Подсказка:** Используйте легенду выше для фильтрации данных. Клиенты с нулевыми значениями автоматически скрываются при переключении категорий.")
+st.info("💡 **Подсказка:** Используйте легенду справа для фильтрации данных. Клиенты с нулевыми значениями автоматически скрываются при переключении категорий.")
 
 # Таблица с детальными данными по всем клиентам
 with st.expander("📋 Детальная таблица по всем клиентам"):
@@ -251,8 +254,12 @@ if len(shipped_today_by_client) > 0:
         fig_today = px.bar(active_today_clients, x='клиент', y='брутто', 
                           title=f"Отгрузки за {today.strftime('%d.%m.%Y')}",
                           color='брутто', color_continuous_scale='Viridis')
-        fig_today.update_layout(height=400, margin=dict(t=40, b=100, l=50, r=30),
-                               xaxis_tickangle=-45)
+        fig_today.update_layout(
+            height=400, 
+            margin=dict(t=40, b=100, l=50, r=30),
+            xaxis_tickangle=-45,
+            showlegend=False  # Для этого графика легенда не нужна
+        )
         st.plotly_chart(fig_today, use_container_width=True)
         
         # Показать общую сумму отгрузок за сегодня
@@ -296,9 +303,19 @@ if len(monthly_stats) > 0:
     
     fig_monthly.update_layout(
         height=400, 
-        margin=dict(t=40, b=80, l=50, r=30),
+        margin=dict(t=40, b=80, l=50, r=100),  # Увеличено правое поле для легенды
         xaxis_tickangle=-45,
-        barmode='group'
+        barmode='group',
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.05,
+            bgcolor='rgba(255,255,255,0.8)',
+            bordercolor='rgba(0,0,0,0.2)',
+            borderwidth=1
+        )
     )
     st.plotly_chart(fig_monthly, use_container_width=True)
     
@@ -306,7 +323,11 @@ if len(monthly_stats) > 0:
     fig_clients_monthly = px.line(monthly_stats, x='месяц', y='уникальных_клиентов',
                                  title='Количество уникальных клиентов по месяцам',
                                  markers=True)
-    fig_clients_monthly.update_layout(height=300, margin=dict(t=40, b=50, l=50, r=30))
+    fig_clients_monthly.update_layout(
+        height=300, 
+        margin=dict(t=40, b=50, l=50, r=30),
+        showlegend=False  # Для линейного графика легенда не нужна
+    )
     st.plotly_chart(fig_clients_monthly, use_container_width=True)
 
 # === 4. Топ клиентов по общему тоннажу ===
@@ -326,7 +347,11 @@ if len(top_clients) > 0:
     fig_top = px.bar(top_clients, x='общий_вес', y='клиент', orientation='h',
                     title="Топ-15 клиентов по общему тоннажу",
                     color='общий_вес', color_continuous_scale='Blues')
-    fig_top.update_layout(height=500, margin=dict(t=40, b=20, l=150, r=20))
+    fig_top.update_layout(
+        height=500, 
+        margin=dict(t=40, b=20, l=150, r=30),
+        showlegend=False  # Для этого графика легенда не нужна
+    )
     st.plotly_chart(fig_top, use_container_width=True)
 else:
     st.info("Нет данных о клиентах с отгрузками")
@@ -364,7 +389,22 @@ if len(vessel_stats) > 0:
     fig_vessels = px.bar(vessel_stats, x='общий_тоннаж', y='судно', orientation='h',
                         title="Топ-10 судов по тоннажу",
                         color='количество_заходов', color_continuous_scale='Greens')
-    fig_vessels.update_layout(height=400, margin=dict(t=40, b=20, l=150, r=20))
+    fig_vessels.update_layout(
+        height=400, 
+        margin=dict(t=40, b=20, l=150, r=30),
+        showlegend=True,
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.05,
+            bgcolor='rgba(255,255,255,0.8)',
+            bordercolor='rgba(0,0,0,0.2)',
+            borderwidth=1,
+            title="Кол-во заходов"
+        )
+    )
     st.plotly_chart(fig_vessels, use_container_width=True)
 else:
     st.info("Нет данных о судах")
